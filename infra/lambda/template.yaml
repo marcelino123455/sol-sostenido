@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Sol sostenido - API de mensajes de apoyo (Lambda con Function URL)
+
+Parameters:
+  Entorno:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+    Description: Debe coincidir con el entorno del stack de DynamoDB
+  CodigoAprobacion:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Si un mensaje llega con este código, se publica sin revisión manual
+  OrigenWeb:
+    Type: String
+    Default: http://localhost:3000
+    Description: Dominio de la web autorizado por CORS (por ejemplo, el de Vercel)
+
+Resources:
+  FuncionMensajes:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "sol-sostenido-mensajes-${Entorno}"
+      CodeUri: src/
+      Handler: index.handler
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      MemorySize: 128
+      Timeout: 5
+      Environment:
+        Variables:
+          TABLA_MENSAJES: { "Fn::ImportValue": !Sub "sol-sostenido-${Entorno}-tabla-mensajes" }
+          CODIGO_APROBACION: !Ref CodigoAprobacion
+      # Solo consulta y escribe en la tabla de mensajes
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:PutItem
+              Resource:
+                Fn::ImportValue: !Sub "sol-sostenido-${Entorno}-tabla-mensajes-arn"
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - !Ref OrigenWeb
+          AllowMethods: [GET, POST]
+          AllowHeaders: [content-type]
+          MaxAge: 300
+
+  # Además de InvokeFunctionUrl (lo agrega SAM), las URL públicas requieren este permiso
+  PermisoInvocarFuncion:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FuncionMensajes
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  LogsFuncion:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/sol-sostenido-mensajes-${Entorno}"
+      RetentionInDays: 7
+
+Outputs:
+  UrlMensajes:
+    Description: URL pública de la API de mensajes
+    Value: !GetAtt FuncionMensajesUrl.FunctionUrl
