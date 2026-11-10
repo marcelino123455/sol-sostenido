@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MENSAJES } from "@/datos/mensajes";
 import { UNIVERSIDADES } from "@/datos/universidades";
+import { API, diasHasta, enviarMensaje, hoyPeru, traerMensajes } from "@/lib/api";
+import { BotonTema } from "@/components/BotonTema";
+import { guardarPerfil, Ingreso, leerPerfil, type Perfil } from "@/components/Ingreso";
 import { convertir, notasDe, type Conversion } from "@/lib/conversion";
 import { construirMapa, type Mapa } from "@/lib/mapa";
 import { destino, lugarDesde } from "@/lib/oyente";
@@ -14,14 +17,16 @@ const MAX_MENSAJE = 140;
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 const UNI = Object.fromEntries(UNIVERSIDADES.map((u) => [u.id, u]));
 const fechaDe = (f: string) => new Date(f + "T12:00:00");
-const FECHAS = [...new Set(MENSAJES.map((m) => m.fecha))].sort();
+const N_DIAS = 15;
+// con API: los últimos 15 días hasta hoy (en Perú); sin API: las fechas de los mensajes de ejemplo
+const FECHAS = API ? diasHasta(hoyPeru(), N_DIAS) : [...new Set(MENSAJES.map((m) => m.fecha))].sort();
 const HOY = FECHAS[FECHAS.length - 1];
 
 type Item = { m: Mensaje; uni: Universidad; conv: Conversion; lugar: ReturnType<typeof lugarDesde> };
+type Carga = "cargando" | "lista" | "error";
 
 // cada mensaje se ubica respecto de quien escucha, y cada día queda del más cercano al más lejano
-function armarDias(oyente: Universidad, propios: Mensaje[]) {
-  const todos = [...MENSAJES, ...propios];
+function armarDias(oyente: Universidad, todos: Mensaje[]) {
   return FECHAS.map((fecha, d) => {
     const items = todos.filter((m) => m.fecha === fecha && UNI[m.universidad])
       .map((m): Item => ({ m, uni: UNI[m.universidad], conv: convertir(m.texto), lugar: lugarDesde(oyente, UNI[m.universidad]) }))
@@ -60,10 +65,10 @@ function circuloGeo(mapa: Mapa, c: Punto, km: number) {
   return d + "Z";
 }
 
-function TextoConClaves({ item, activa }: { item: Item; activa: number }) {
+function TextoConClaves({ texto, claves, activa }: { texto: string; claves: string[]; activa: number }) {
   let k = 0;
-  return item.m.texto.split(/(\p{L}+)/u).map((parte, j) => {
-    if (k < item.conv.claves.length && parte.toLowerCase().normalize("NFC") === item.conv.claves[k]) {
+  return texto.split(/(\p{L}+)/u).map((parte, j) => {
+    if (k < claves.length && parte.toLowerCase().normalize("NFC") === claves[k]) {
       const n = k++;
       return <span key={j} className={"clave" + (n === activa ? " activa" : "")}>{parte}</span>;
     }
@@ -74,9 +79,25 @@ function TextoConClaves({ item, activa }: { item: Item; activa: number }) {
 const IconoPlay = () => <svg className="icono play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.2v9.6L10.5 6z" fill="currentColor" /></svg>;
 const IconoPausa = () => <svg className="icono" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.5h2.4v9H2.5zM7.1 1.5h2.4v9H7.1z" fill="currentColor" /></svg>;
 
+// siempre se entra por el ingreso; trae rellenados el nombre y la universidad de la última vez
 export default function Mural() {
-  const [oyente, setOyente] = useState<Universidad>(UNI.utec);
-  const [propios, setPropios] = useState<Mensaje[]>([]);
+  const [ultimo] = useState<Perfil | null>(leerPerfil);
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [editando, setEditando] = useState(false);
+  if (!perfil || editando) {
+    return <Ingreso inicial={perfil ?? ultimo} alEntrar={(p) => { guardarPerfil(p); setPerfil(p); setEditando(false); }} />;
+  }
+  return <MuralSonoro key={perfil.universidad} perfil={perfil} alCambiar={() => setEditando(true)} />;
+}
+
+function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => void }) {
+  const autor = UNI[perfil.universidad];
+  const [oyente, setOyente] = useState<Universidad>(autor);
+  const [mensajes, setMensajes] = useState<Mensaje[]>(API ? [] : MENSAJES);
+  const [carga, setCarga] = useState<Carga>(API ? "cargando" : "lista");
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const [diaSel, setDiaSel] = useState(FECHAS.length - 1);
   const [ahora, setAhora] = useState<Ahora>(null);
   const [pausado, setPausado] = useState(false);
@@ -85,8 +106,17 @@ export default function Mural() {
   const [pulsos, setPulsos] = useState<Pulso[]>([]);
   const [modal, setModal] = useState(false);
   const [borrador, setBorrador] = useState("");
+  // si coincide con el secreto del Worker, el mensaje se publica sin revisión; nunca se guarda en el código
+  const [clave, setClave] = useState("");
 
-  const dias = useMemo(() => armarDias(oyente, propios), [oyente, propios]);
+  const dias = useMemo(() => armarDias(oyente, mensajes), [oyente, mensajes]);
+
+  useEffect(() => {
+    if (!API) return;
+    traerMensajes(FECHAS[0], HOY)
+      .then((m) => { setMensajes(m); setCarga("lista"); })
+      .catch(() => setCarga("error"));
+  }, []);
   const dia = dias[diaSel];
   const mapa = useMemo(() => (tam ? construirMapa(tam.w, tam.h) : null), [tam]);
 
@@ -100,8 +130,16 @@ export default function Mural() {
   const ctxRef = useRef({ mapa, oyente });
   useEffect(() => { ctxRef.current = { mapa, oyente }; });
 
+  // vista previa del borrador: qué palabra suena mientras se escucha (-1: ninguna)
+  const [previaK, setPreviaK] = useState(-1);
+  const previaId = useRef(0);
+  const fondoRef = useRef<HTMLDivElement>(null);
+  const convBorrador = useMemo(() => convertir(borrador), [borrador]);
+
   const detener = useCallback(() => {
     sonidoRef.current?.detener();
+    previaId.current++;
+    setPreviaK(-1);
     repRef.current = null;
     setAhora(null);
     setPausado(false);
@@ -134,16 +172,45 @@ export default function Mural() {
 
   const escucharBorrador = async () => {
     detener();
+    const id = previaId.current;
     const t = await audio();
-    tocarMensaje(sonidoRef.current!, convertir(borrador), t + 0.1, dia.bpm, AQUI);
+    const r = tocarMensaje(sonidoRef.current!, convBorrador, t + 0.1, dia.bpm, AQUI);
+    // subraya la palabra que suena, siguiendo el reloj del audio
+    const cuadro = () => {
+      if (previaId.current !== id) return;
+      const ahora = sonidoRef.current!.ahora;
+      setPreviaK(r.palabras.find((p) => ahora >= p.t && ahora < p.fin)?.k ?? -1);
+      if (ahora < r.fin) requestAnimationFrame(cuadro);
+    };
+    requestAnimationFrame(cuadro);
   };
-  const cerrarModal = () => { detener(); setModal(false); setBorrador(""); };
-  const enviar = () => {
+  const cerrarModal = () => { detener(); setModal(false); setBorrador(""); setErrorEnvio(null); };
+  const enviar = async () => {
     const texto = borrador.trim();
-    if (!texto) return;
-    setPropios((l) => [...l, { fecha: HOY, universidad: oyente.id, texto }]);
-    setDiaSel(FECHAS.length - 1);
-    cerrarModal();
+    if (!texto || enviando) return;
+    if (!API) { // sin API, el mensaje solo vive en esta pestaña
+      setMensajes((l) => [...l, { fecha: HOY, universidad: autor.id, texto, nombre: perfil.nombre }]);
+      setDiaSel(FECHAS.length - 1);
+      cerrarModal();
+      return;
+    }
+    setEnviando(true);
+    setErrorEnvio(null);
+    try {
+      const r = await enviarMensaje({ universidad: autor.id, texto, nombre: perfil.nombre, codigo: clave.trim() || undefined });
+      if (r.estado === "aprobado") {
+        setMensajes((l) => [...l, { id: r.id, fecha: r.fecha, universidad: autor.id, texto, nombre: perfil.nombre }]);
+        setDiaSel(FECHAS.length - 1);
+        setAviso(null);
+      } else {
+        setAviso("Gracias por tu mensaje. Lo revisaremos antes de que aparezca en el mural.");
+      }
+      cerrarModal();
+    } catch (e) {
+      setErrorEnvio(e instanceof Error ? e.message : "No se pudo enviar el mensaje");
+    } finally {
+      setEnviando(false);
+    }
   };
 
   // el reloj de la obra: sincroniza la imagen con el audio ya programado
@@ -219,6 +286,9 @@ export default function Mural() {
       <section className="mapa-zona" ref={zonaRef} aria-label="Mapa de universidades del Perú">
         <svg ref={svgRef} className="mapa" role="img" viewBox={tam ? `0 0 ${tam.w} ${tam.h}` : undefined} aria-label="Mapa del Perú con sus universidades">
           {mapa && <>
+            {/* los países vecinos, solo de contorno, para que el Perú no flote solo */}
+            {mapa.paises.filter((p) => p.cc !== "PE").map((p) => <path key={p.cc} d={p.d} fillRule="evenodd" className="vecino" />)}
+            {mapa.vecinos.filter((v) => v.x > 40 && v.x < tam!.w - 40 && v.y > 20 && v.y < tam!.h - 14).map((v) => <text key={v.nombre} className="vecino-texto" x={v.x.toFixed(1)} y={v.y.toFixed(1)} textAnchor="middle">{v.nombre}</text>)}
             {mapa.paises.filter((p) => p.cc === "PE").map((p) => <path key={p.cc} d={p.d} fillRule="evenodd" className="pais" />)}
             <text className="peru" x={tam!.w - 24} y={34} textAnchor="end">PERÚ</text>
             <g ref={ondaRef} className="onda" transform={desfase} style={{ display: "none" }}><path /><path /><path /></g>
@@ -240,13 +310,20 @@ export default function Mural() {
         {ahora && (
           <div className="burbuja" ref={burbujaRef}>
             <div className="quien">{ahora.item.uni.nombre} · {ahora.item.uni.ciudad}</div>
-            <div className="que">“<TextoConClaves item={ahora.item} activa={ahora.enCierre ? -1 : ahora.k} />”</div>
+            <div className="que">“<TextoConClaves texto={ahora.item.m.texto} claves={ahora.item.conv.claves} activa={ahora.enCierre ? -1 : ahora.k} />”</div>
           </div>
         )}
       </section>
 
       <aside className="panel">
-        <h1>Sol sostenido <span>♯</span></h1>
+        <div className="cabecera">
+          <h1>Sol sostenido <span>♯</span></h1>
+          <BotonTema />
+        </div>
+        <p className="desde">
+          Escribes como <b>{perfil.nombre ?? "anónimo"}</b> · {autor.nombre}{" "}
+          <button type="button" className="enlace" onClick={() => { detener(); alCambiar(); }}>Cambiar</button>
+        </p>
         <label className="desde">
           Escuchas desde:{" "}
           <select value={oyente.id} onChange={(e) => elegirOyente(e.target.value)}>
@@ -257,13 +334,17 @@ export default function Mural() {
           <button className="boton" type="button" onClick={() => tocar(dia.items)}><IconoPlay /> Escuchar</button>
           <button className="boton suave" type="button" onClick={() => { detener(); setModal(true); }}>+ Escribir</button>
         </div>
+        {aviso && <p className="aviso" role="status">{aviso}</p>}
         <h2>Mensajes del {fechaDe(dia.fecha).toLocaleDateString("es-PE", { day: "numeric", month: "long" })}:</h2>
         <div className="tarjetas">
+          {carga === "cargando" && <p className="vacio">Cargando mensajes…</p>}
+          {carga === "error" && <p className="vacio">No pudimos cargar los mensajes. Intenta recargar la página.</p>}
+          {carga === "lista" && !dia.items.length && <p className="vacio">Aún no hay mensajes este día. ¿Escribes el primero?</p>}
           {dia.items.map((item, n) => {
             const suena = ahora?.item.m === item.m;
             return (
-              <article key={n} className={"tarjeta" + (suena ? " sonando" : "")}>
-                <b>{item.uni.nombre} · {item.uni.ciudad}</b>
+              <article key={item.m.id ?? n} className={"tarjeta" + (suena ? " sonando" : "")}>
+                <b>{item.uni.nombre} · {item.uni.ciudad}{item.m.nombre ? ` · ${item.m.nombre}` : ""}</b>
                 <p>“{item.m.texto}”</p>
                 <div className="botones">
                   <button type="button" onClick={() => (suena && pausado ? seguir() : tocar([item]))}><IconoPlay /> Escuchar</button>
@@ -276,15 +357,24 @@ export default function Mural() {
       </aside>
 
       <footer className="pie">
+        {/* línea de tiempo: el punto de cada día crece con sus mensajes; el mes se marca donde empieza */}
         <nav className="dias" aria-label="Días">
-          {dias.map((d, n) => (
-            <button key={d.fecha} type="button" className={"dia" + (n === diaSel ? " sel" : "")} onClick={() => elegirDia(n)}>
-              <b>{+d.fecha.slice(8)}</b>
-              {fechaDe(d.fecha).toLocaleDateString("es-PE", { month: "short" }).replace(".", "")}
-            </button>
-          ))}
+          {dias.map((d, n) => {
+            const f = fechaDe(d.fecha), esHoy = n === dias.length - 1;
+            const mes = n === 0 || d.fecha.slice(5, 7) !== dias[n - 1].fecha.slice(5, 7) ? f.toLocaleDateString("es-PE", { month: "long" }) : null;
+            const total = d.items.length;
+            return (
+              <button key={d.fecha} type="button" className={"dia" + (n === diaSel ? " sel" : "") + (esHoy ? " hoy" : "")} onClick={() => elegirDia(n)}
+                aria-label={`${f.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" })}: ${total} ${total === 1 ? "mensaje" : "mensajes"}`}
+                aria-current={n === diaSel ? "date" : undefined}>
+                {mes && <span className="mes">{mes}</span>}
+                <span className="semana">{esHoy ? "hoy" : f.toLocaleDateString("es-PE", { weekday: "narrow" })}</span>
+                <b>{+d.fecha.slice(8)}</b>
+                <i className="punto" style={{ "--n": Math.min(total, 6) } as React.CSSProperties} />
+              </button>
+            );
+          })}
         </nav>
-        <b className="hoy">hoy</b>
         <span className="linea">Línea 113, opción 5</span>
       </footer>
 
@@ -295,16 +385,29 @@ export default function Mural() {
               <h2 id="modal-titulo">Escribe un mensaje de apoyo</h2>
               <button type="button" aria-label="Cerrar" onClick={cerrarModal}>×</button>
             </header>
-            <p className="desde">Desde: <b>{oyente.nombre}</b> · {oyente.ciudad} · Nombre: <i>anónimo</i></p>
+            <p className="desde">Desde: <b>{autor.nombre}</b> · {autor.ciudad} · Nombre: {perfil.nombre ? <b>{perfil.nombre}</b> : <i>anónimo</i>}</p>
+            {/* el texto con formato se dibuja detrás; el textarea queda encima, transparente, con su cursor */}
             <div className="campo">
+              <div className="editor-fondo" ref={fondoRef} aria-hidden="true">
+                <TextoConClaves texto={borrador} claves={convBorrador.claves} activa={previaK} />{"\n"}
+              </div>
               <textarea autoFocus maxLength={MAX_MENSAJE} value={borrador} onChange={(e) => setBorrador(e.target.value)}
+                onScroll={(e) => { if (fondoRef.current) fondoRef.current.scrollTop = e.currentTarget.scrollTop; }}
                 aria-label="Tu mensaje" placeholder="Escribe algo que te hubiera gustado leer en un día difícil…" />
               <small>{borrador.length} / {MAX_MENSAJE}</small>
             </div>
             <button className="boton suave" type="button" disabled={!borrador.trim()} onClick={escucharBorrador}><IconoPlay /> Escuchar cómo suena</button>
+            {API && <>
+              <label className="clave-campo">
+                <span>Clave <small>(opcional)</small></span>
+                <input type="password" value={clave} autoComplete="off" onChange={(e) => setClave(e.target.value)} />
+              </label>
+              <p className="nota">Tu mensaje se revisa antes de aparecer en el mural. Con la clave correcta, se publica al instante.</p>
+            </>}
+            {errorEnvio && <p className="error" role="alert">{errorEnvio}</p>}
             <div className="fin">
               <button className="boton suave" type="button" onClick={cerrarModal}>Cancelar</button>
-              <button className="boton" type="button" disabled={!borrador.trim()} onClick={enviar}>Enviar</button>
+              <button className="boton" type="button" disabled={!borrador.trim() || enviando} onClick={enviar}>{enviando ? "Enviando…" : "Enviar"}</button>
             </div>
           </div>
         </div>

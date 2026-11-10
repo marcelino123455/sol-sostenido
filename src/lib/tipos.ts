@@ -1,4 +1,4 @@
-export type Mensaje = { fecha: string; universidad: string; texto: string };
+export type Mensaje = { id?: string; fecha: string; universidad: string; texto: string; nombre?: string | null };
 
 export type Universidad = {
   id: string;
