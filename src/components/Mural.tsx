@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MENSAJES } from "@/datos/mensajes";
 import { UNIVERSIDADES } from "@/datos/universidades";
-import { API, diasHasta, enviarMensaje, hoyPeru, traerMensajes } from "@/lib/api";
+import { API, diasHasta, enviarMensaje, horaPeru, hoyPeru, momentoDe, traerMensajes } from "@/lib/api";
 import { BotonTema } from "@/components/BotonTema";
 import { guardarPerfil, Ingreso, leerPerfil, type Perfil } from "@/components/Ingreso";
 import { convertir, notasDe, type Conversion } from "@/lib/conversion";
@@ -348,12 +348,17 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
           {carga === "cargando" && <p className="vacio">Cargando mensajes…</p>}
           {carga === "error" && <p className="vacio">No pudimos cargar los mensajes. Intenta recargar la página.</p>}
           {carga === "lista" && !dia.items.length && <p className="vacio">Aún no hay mensajes este día. ¿Escribes el primero?</p>}
-          {dia.items.map((item, n) => {
+          {/* las tarjetas van de la más reciente a la más antigua; "Escuchar" sigue el orden de la onda (cercanía) */}
+          {[...dia.items].sort((a, b) => (b.m.id ?? "").localeCompare(a.m.id ?? "")).map((item, n) => {
             const suena = ahora?.item.m === item.m;
+            const momento = momentoDe(item.m.id);
             return (
               <article key={item.m.id ?? n} className={"tarjeta" + (item.m.tipo === "testimonio" ? " testimonio" : "") + (suena ? " sonando" : "")}>
                 {item.m.tipo === "testimonio" && <span className="etiqueta-tipo">Testimonio</span>}
-                <b>{item.uni.nombre} · {item.uni.ciudad}{item.m.nombre ? ` · ${item.m.nombre}` : ""}</b>
+                <b>
+                  {item.uni.nombre} · {item.uni.ciudad}{item.m.nombre ? ` · ${item.m.nombre}` : ""}
+                  {momento && <time dateTime={momento.toISOString()}>{horaPeru(momento)}</time>}
+                </b>
                 <p>“{item.m.texto}”</p>
                 <div className="botones">
                   <button type="button" onClick={() => (suena && pausado ? seguir() : tocar([item]))}><IconoPlay /> Escuchar</button>

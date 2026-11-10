@@ -8,6 +8,18 @@ export const API = (process.env.NEXT_PUBLIC_API_MENSAJES ?? API_PUBLICADA).repla
 // el día de hoy en Perú, igual que lo calcula el Worker al guardar
 export const hoyPeru = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
+// el id es un ULID: sus 10 primeros caracteres son el momento en que se guardó (milisegundos, base 32 de Crockford)
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+export function momentoDe(id?: string): Date | null {
+  if (!id || !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) return null;
+  let ms = 0;
+  for (const c of id.slice(0, 10)) ms = ms * 32 + CROCKFORD.indexOf(c);
+  return new Date(ms);
+}
+
+export const horaPeru = (d: Date) =>
+  new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "numeric", minute: "2-digit" }).format(d);
+
 export function diasHasta(hoy: string, n: number) {
   const base = Date.parse(hoy + "T12:00:00Z");
   return Array.from({ length: n }, (_, k) => new Date(base - (n - 1 - k) * 86_400_000).toISOString().slice(0, 10));
