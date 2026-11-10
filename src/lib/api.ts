@@ -1,7 +1,9 @@
-// La API de mensajes (Cloudflare Worker, ver infra/worker). Sin URL configurada, el mural usa los mensajes de ejemplo.
+// La API de mensajes (Cloudflare Worker, ver infra/worker). La URL es pública: va en el código.
+// NEXT_PUBLIC_API_MENSAJES solo sirve para apuntar a otro Worker (por ejemplo, el local); vacía, usa los mensajes de ejemplo.
 import type { Mensaje } from "@/lib/tipos";
 
-export const API = process.env.NEXT_PUBLIC_API_MENSAJES?.replace(/\/$/, "");
+const API_PUBLICADA = "https://sol-sostenido-api.marcelino-maita.workers.dev";
+export const API = (process.env.NEXT_PUBLIC_API_MENSAJES ?? API_PUBLICADA).replace(/\/$/, "");
 
 // el día de hoy en Perú, igual que lo calcula el Worker al guardar
 export const hoyPeru = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
