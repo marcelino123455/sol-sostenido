@@ -177,31 +177,50 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
 .boton-tema:hover { background: var(--hover); }
 .boton-tema svg { width: 16px; height: 16px; }
 .cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.ingreso .boton-tema { position: fixed; top: 16px; right: 16px; }
+.ingreso .boton-tema { position: fixed; top: 16px; right: 16px; z-index: 4; }
 
-/* ingreso */
-.ingreso { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; min-height: 100vh; padding: 24px 16px; }
-.ingreso-caja { display: flex; flex-direction: column; width: min(420px, 100%); padding: 32px; background: var(--panel); border-radius: 24px; box-shadow: var(--sombra); animation: modal 260ms ease-out; }
-.ingreso-caja h1 { font-size: 40px; }
-.subtitulo { margin: 6px 0 28px; color: var(--gris); font: italic 400 16px/1.35 var(--serif); text-wrap: balance; }
+/* ingreso: a la izquierda qué es la obra, a la derecha el formulario */
+.ingreso { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); align-items: center; gap: clamp(32px, 6vw, 96px);
+  min-height: 100vh; max-width: 1080px; margin: 0 auto; padding: 48px 32px; }
+.ingreso-descripcion { display: flex; flex-direction: column; gap: 16px; max-width: 520px; animation: aparece 300ms ease-out; }
+.ingreso-descripcion h1 { font-size: clamp(44px, 6vw, 64px); }
+.ingreso-descripcion p { font-size: 16px; line-height: 1.55; color: var(--gris); text-wrap: pretty; }
+.ingreso-descripcion .lema { font: italic 400 21px/1.35 var(--serif); color: var(--texto); text-wrap: balance; }
+.ingreso-descripcion .alegoria { padding-left: 14px; border-left: 2px solid var(--sol); font: italic 400 16px/1.5 var(--serif); }
+
+.ingreso-caja { display: flex; flex-direction: column; width: 100%; padding: 32px; background: var(--panel); border-radius: 24px; box-shadow: var(--sombra); animation: modal 260ms ease-out; }
+.ingreso-caja h2 { font-size: 26px; margin-bottom: 22px; }
 .etiqueta { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .etiqueta small { font-weight: 400; color: var(--gris); }
-.ingreso-caja input, .ingreso-caja select { width: 100%; min-height: 44px; padding: 0 12px; margin: 0; border-radius: 12px; background: var(--panel-alto); color: var(--texto); font-size: 15px; box-shadow: none; }
+.ingreso-caja input { width: 100%; min-height: 44px; padding: 0 12px; margin: 0; border-radius: 12px; background: var(--panel-alto); color: var(--texto); font-size: 15px; box-shadow: none; }
 .ingreso-caja input::placeholder { color: var(--gris); }
 .ingreso-caja input:focus-visible { outline: 2px solid var(--sol); outline-offset: 2px; }
 .ayuda { margin: 6px 0 18px; font-size: 12px; color: var(--gris); }
 .ingreso-caja .boton { margin-top: 6px; }
+.ingreso-caja .linea { margin-top: 16px; text-align: center; white-space: normal; }
+
+/* buscador de universidad */
+.buscador { position: relative; }
+.opciones { position: absolute; z-index: 3; top: calc(100% + 6px); left: 0; right: 0; max-height: 260px; overflow-y: auto; padding: 6px;
+  background: var(--panel); border-radius: 14px; box-shadow: var(--sombra), 0 12px 28px rgba(0, 0, 0, 0.18); animation: aparece 140ms ease-out; }
+.opciones li { padding: 8px 10px; border-radius: 10px; font-size: 14px; cursor: pointer; }
+.opciones li span { color: var(--gris); font-size: 12px; }
+.opciones li.activa { background: var(--hover); }
+.opciones li[aria-selected="true"] b { color: var(--sol); }
+.opciones .sin-resultados { color: var(--gris); cursor: default; }
+
 .enlace { padding: 0 2px; font-size: 13px; color: var(--sol); text-decoration: underline; text-underline-offset: 3px; }
 .enlace:hover { color: var(--sol-hover); }
 
 @media (max-width: 900px) {
+  .ingreso { grid-template-columns: minmax(0, 1fr); padding: 56px 16px 32px; gap: 32px; }
   .app { display: flex; flex-direction: column; height: auto; padding: 16px; }
   .mapa-zona { height: 70vh; }
   .pie { flex-wrap: wrap; }
   .dias { flex-basis: 100%; grid-auto-flow: column; overflow-x: auto; grid-auto-columns: 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .burbuja, .tarjeta, .velo, .modal { animation: none; }
+  .burbuja, .tarjeta, .velo, .modal, .ingreso-descripcion, .opciones { animation: none; }
   .pulso, .pulso-onda { animation-duration: 0.01s; }
   .uni.oyente .uni-halo { animation: none; opacity: 0.3; }
   button:active:not(:disabled) { scale: 1; }
