@@ -1,6 +1,6 @@
 // La API de mensajes (Cloudflare Worker, ver infra/worker). La URL es pública: va en el código.
 // NEXT_PUBLIC_API_MENSAJES solo sirve para apuntar a otro Worker (por ejemplo, el local); vacía, usa los mensajes de ejemplo.
-import type { Mensaje } from "@/lib/tipos";
+import type { Mensaje, Tipo } from "@/lib/tipos";
 
 const API_PUBLICADA = "https://sol-sostenido-api.marcelino-maita.workers.dev";
 export const API = (process.env.NEXT_PUBLIC_API_MENSAJES ?? API_PUBLICADA).replace(/\/$/, "");
@@ -36,7 +36,7 @@ export async function traerMensajes(desde: string, hasta: string) {
 export type Enviado = { id: string; fecha: string; estado: "aprobado" | "pendiente" };
 
 // codigo: la clave que se escribe en el modal; si coincide con el secreto del Worker, se publica sin revisión
-export async function enviarMensaje(datos: { universidad: string; texto: string; nombre?: string; codigo?: string }) {
+export async function enviarMensaje(datos: { universidad: string; tipo: Tipo; texto: string; nombre?: string; codigo?: string }) {
   const r = await pedir(`${API}/mensajes`, {
     method: "POST",
     headers: { "content-type": "application/json" },

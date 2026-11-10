@@ -10,10 +10,16 @@ import { convertir, notasDe, type Conversion } from "@/lib/conversion";
 import { construirMapa, type Mapa } from "@/lib/mapa";
 import { destino, lugarDesde } from "@/lib/oyente";
 import { AQUI, Sonido, tocarDia, tocarMensaje } from "@/lib/sonido";
-import type { Mensaje, Punto, Universidad } from "@/lib/tipos";
+import type { Mensaje, Punto, Tipo, Universidad } from "@/lib/tipos";
 
 const BPM = [84, 120]; // del primer día a hoy: cuanto más cerca de hoy, más rápido
-const MAX_MENSAJE = 140;
+// cada tipo de mensaje tiene su título, su invitación y su largo (igual que en el Worker)
+const TIPOS = {
+  apoyo: { titulo: "Escribe un mensaje de apoyo", boton: "Mensaje de apoyo", max: 140,
+    invitacion: "Escribe algo que te hubiera gustado leer en un día difícil…" },
+  testimonio: { titulo: "Comparte tu testimonio", boton: "Testimonio", max: 280,
+    invitacion: "Cuenta un momento difícil que superaste y qué te ayudó a salir adelante…" },
+} as const;
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 const UNI = Object.fromEntries(UNIVERSIDADES.map((u) => [u.id, u]));
 const fechaDe = (f: string) => new Date(f + "T12:00:00");
@@ -108,6 +114,8 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
   const [borrador, setBorrador] = useState("");
   // si coincide con el secreto del Worker, el mensaje se publica sin revisión; nunca se guarda en el código
   const [clave, setClave] = useState("");
+  const [tipo, setTipo] = useState<Tipo>("apoyo");
+  const T = TIPOS[tipo];
 
   const dias = useMemo(() => armarDias(oyente, mensajes), [oyente, mensajes]);
 
@@ -184,12 +192,12 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
     };
     requestAnimationFrame(cuadro);
   };
-  const cerrarModal = () => { detener(); setModal(false); setBorrador(""); setErrorEnvio(null); };
+  const cerrarModal = () => { detener(); setModal(false); setBorrador(""); setErrorEnvio(null); setTipo("apoyo"); };
   const enviar = async () => {
     const texto = borrador.trim();
     if (!texto || enviando) return;
     if (!API) { // sin API, el mensaje solo vive en esta pestaña
-      setMensajes((l) => [...l, { fecha: HOY, universidad: autor.id, texto, nombre: perfil.nombre }]);
+      setMensajes((l) => [...l, { fecha: HOY, universidad: autor.id, tipo, texto, nombre: perfil.nombre }]);
       setDiaSel(FECHAS.length - 1);
       cerrarModal();
       return;
@@ -197,9 +205,9 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
     setEnviando(true);
     setErrorEnvio(null);
     try {
-      const r = await enviarMensaje({ universidad: autor.id, texto, nombre: perfil.nombre, codigo: clave.trim() || undefined });
+      const r = await enviarMensaje({ universidad: autor.id, tipo, texto, nombre: perfil.nombre, codigo: clave.trim() || undefined });
       if (r.estado === "aprobado") {
-        setMensajes((l) => [...l, { id: r.id, fecha: r.fecha, universidad: autor.id, texto, nombre: perfil.nombre }]);
+        setMensajes((l) => [...l, { id: r.id, fecha: r.fecha, universidad: autor.id, tipo, texto, nombre: perfil.nombre }]);
         setDiaSel(FECHAS.length - 1);
         setAviso(null);
       } else {
@@ -308,8 +316,8 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
           </>}
         </svg>
         {ahora && (
-          <div className="burbuja" ref={burbujaRef}>
-            <div className="quien">{ahora.item.uni.nombre} · {ahora.item.uni.ciudad}</div>
+          <div className={"burbuja" + (ahora.item.m.tipo === "testimonio" ? " testimonio" : "")} ref={burbujaRef}>
+            <div className="quien">{ahora.item.m.tipo === "testimonio" && <span className="etiqueta-tipo">Testimonio</span>}{ahora.item.uni.nombre} · {ahora.item.uni.ciudad}</div>
             <div className="que">“<TextoConClaves texto={ahora.item.m.texto} claves={ahora.item.conv.claves} activa={ahora.enCierre ? -1 : ahora.k} />”</div>
           </div>
         )}
@@ -343,7 +351,8 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
           {dia.items.map((item, n) => {
             const suena = ahora?.item.m === item.m;
             return (
-              <article key={item.m.id ?? n} className={"tarjeta" + (suena ? " sonando" : "")}>
+              <article key={item.m.id ?? n} className={"tarjeta" + (item.m.tipo === "testimonio" ? " testimonio" : "") + (suena ? " sonando" : "")}>
+                {item.m.tipo === "testimonio" && <span className="etiqueta-tipo">Testimonio</span>}
                 <b>{item.uni.nombre} · {item.uni.ciudad}{item.m.nombre ? ` · ${item.m.nombre}` : ""}</b>
                 <p>“{item.m.texto}”</p>
                 <div className="botones">
@@ -382,20 +391,27 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
         <div className="velo">
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
             <header>
-              <h2 id="modal-titulo">Escribe un mensaje de apoyo</h2>
+              <h2 id="modal-titulo">{T.titulo}</h2>
               <button type="button" aria-label="Cerrar" onClick={cerrarModal}>×</button>
             </header>
+            <div className="selector-tipo" role="radiogroup" aria-label="Tipo de mensaje">
+              {(Object.keys(TIPOS) as Tipo[]).map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={tipo === t} className={t + (tipo === t ? " elegido" : "")}
+                  onClick={() => { detener(); setTipo(t); setBorrador((b) => b.slice(0, TIPOS[t].max)); }}>{TIPOS[t].boton}</button>
+              ))}
+            </div>
             <p className="desde">Desde: <b>{autor.nombre}</b> · {autor.ciudad} · Nombre: {perfil.nombre ? <b>{perfil.nombre}</b> : <i>anónimo</i>}</p>
             {/* el texto con formato se dibuja detrás; el textarea queda encima, transparente, con su cursor */}
             <div className="campo">
               <div className="editor-fondo" ref={fondoRef} aria-hidden="true">
                 <TextoConClaves texto={borrador} claves={convBorrador.claves} activa={previaK} />{"\n"}
               </div>
-              <textarea autoFocus maxLength={MAX_MENSAJE} value={borrador} onChange={(e) => setBorrador(e.target.value)}
+              <textarea autoFocus maxLength={T.max} value={borrador} onChange={(e) => setBorrador(e.target.value)}
                 onScroll={(e) => { if (fondoRef.current) fondoRef.current.scrollTop = e.currentTarget.scrollTop; }}
-                aria-label="Tu mensaje" placeholder="Escribe algo que te hubiera gustado leer en un día difícil…" />
-              <small>{borrador.length} / {MAX_MENSAJE}</small>
+                aria-label="Tu mensaje" placeholder={T.invitacion} />
+              <small>{borrador.length} / {T.max}</small>
             </div>
+            {tipo === "testimonio" && <p className="nota">Cuenta cómo saliste adelante; no hace falta dar detalles de lo que pasó.</p>}
             <button className="boton suave" type="button" disabled={!borrador.trim()} onClick={escucharBorrador}><IconoPlay /> Escuchar cómo suena</button>
             {API && <>
               <label className="clave-campo">

@@ -14,6 +14,7 @@
   --apagado: #282828;      /* universidades sin sonar */
   --sol: #282828;          /* el acento: lo que suena, la onda, el botón principal */
   --sol-hover: #504945;
+  --testimonio: #a8461a;  /* segundo acento: los testimonios (5:1 sobre las tarjetas) */
   --sol-tenue: rgba(80, 73, 69, 0.06);
   --brillo: 0 0 0 transparent;
   --resplandor: linear-gradient(transparent, transparent);
@@ -41,6 +42,7 @@
   --apagado: #6b6f85;
   --sol: #f2b544;          /* el único acento: lo que suena, la onda, el ♯ */
   --sol-hover: #f6c566;
+  --testimonio: #7fb6d6;  /* azul cielo sobre la noche */
   --sol-tenue: rgba(242, 181, 68, 0.15);
   --brillo: 0 0 8px rgba(242, 181, 68, 0.75);
   --resplandor: radial-gradient(120% 70% at 30% 115%, rgba(242, 181, 68, 0.07), transparent 60%);
@@ -164,6 +166,15 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
 .campo small { position: absolute; right: 12px; bottom: 7px; color: var(--gris); }
 .fin { display: flex; justify-content: flex-end; gap: 10px; width: 100%; }
 .nota { font-size: 13px; color: var(--gris); }
+/* testimonios: se distinguen con un borde de otro color y una etiqueta */
+.tarjeta.testimonio, .burbuja.testimonio { box-shadow: inset 3px 0 0 var(--testimonio), var(--sombra); }
+.tarjeta.testimonio.sonando { box-shadow: 0 0 0 1.5px var(--testimonio), var(--brillo-tarjeta); }
+.etiqueta-tipo { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--testimonio); }
+.selector-tipo { display: inline-flex; gap: 4px; padding: 4px; background: var(--panel-alto); border-radius: 12px; }
+.selector-tipo button { min-height: 36px; padding: 0 14px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--gris); }
+.selector-tipo button:hover:not(.elegido) { color: var(--texto); }
+.selector-tipo .elegido { background: var(--panel); color: var(--texto); box-shadow: var(--sombra); }
+.selector-tipo .testimonio.elegido { color: var(--testimonio); }
 .clave-campo { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
 .clave-campo small { font-weight: 400; color: var(--gris); }
 .clave-campo input { width: 160px; min-height: 36px; padding: 0 10px; border-radius: 10px; background: var(--panel-alto); color: var(--texto); font-size: 15px; }

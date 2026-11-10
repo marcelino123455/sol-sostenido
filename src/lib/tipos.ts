@@ -1,4 +1,6 @@
-export type Mensaje = { id?: string; fecha: string; universidad: string; texto: string; nombre?: string | null };
+// apoyo: un mensaje para otros; testimonio: algo difícil que alguien superó y cómo salió adelante
+export type Tipo = "apoyo" | "testimonio";
+export type Mensaje = { id?: string; fecha: string; universidad: string; tipo?: Tipo; texto: string; nombre?: string | null };
 
 export type Universidad = {
   id: string;
