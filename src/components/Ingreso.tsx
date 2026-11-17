@@ -105,9 +105,12 @@ export function Ingreso({ alEntrar, inicial }: { alEntrar: (p: Perfil) => void; 
         <h1>Sol sostenido <span>♯</span></h1>
         <p className="lema">Un mural sonoro de apoyo y contención entre universidades del Perú.</p>
         <p>
-          Estudiantes universitarios de todo el país se dejan mensajes de apoyo. Cada mensaje se convierte en una
-          melodía alegre que suena desde su universidad en el mapa, para recordarte que, aunque no lo veas, hay
-          alguien contigo.
+          Estudiantes universitarios de todo el país se dejan mensajes de apoyo y comparten testimonios de momentos
+          difíciles que lograron superar. Cada mensaje se convierte en una melodía alegre que suena desde su
+          universidad en el mapa, para recordarte que, aunque no lo veas, hay alguien contigo.
+        </p>
+        <p>
+          Es un espacio para escuchar y sentirte escuchado: lo que escribas también llegará a alguien que lo necesita.
         </p>
       </section>
 
