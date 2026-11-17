@@ -30,6 +30,7 @@ const HOY = FECHAS[FECHAS.length - 1];
 
 type Item = { m: Mensaje; uni: Universidad; conv: Conversion; lugar: ReturnType<typeof lugarDesde> };
 type Carga = "cargando" | "lista" | "error";
+const tipoDe = (x: { m: Mensaje }): Tipo => x.m.tipo ?? "apoyo";
 
 // cada mensaje se ubica respecto de quien escucha, y cada día queda del más cercano al más lejano
 function armarDias(oyente: Universidad, todos: Mensaje[]) {
@@ -115,6 +116,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
   // si coincide con el secreto del Worker, el mensaje se publica sin revisión; nunca se guarda en el código
   const [clave, setClave] = useState("");
   const [tipo, setTipo] = useState<Tipo>("apoyo");
+  const [ver, setVer] = useState<Tipo>("apoyo"); // el panel muestra mensajes de apoyo o testimonios, nunca mezclados
   const T = TIPOS[tipo];
 
   const dias = useMemo(() => armarDias(oyente, mensajes), [oyente, mensajes]);
@@ -284,6 +286,48 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
     b.style.top = (y > 10 ? y : p.y + 22) + "px";
   }, [burbujaItem, mapa]);
 
+  // los mensajes del día, del más reciente al más antiguo (el orden de la onda solo se usa al escuchar)
+  const recientes = [...dia.items].sort((a, b) => (b.m.id ?? "").localeCompare(a.m.id ?? ""));
+
+  const botonesEscuchar = (item: Item, suena: boolean) => (
+    <div className="botones">
+      <button type="button" onClick={() => (suena && pausado ? seguir() : tocar([item]))}><IconoPlay /> Escuchar</button>
+      <button type="button" disabled={!suena || pausado} onClick={pausar}><IconoPausa /> Pausa</button>
+    </div>
+  );
+
+  // tarjeta de un mensaje de apoyo
+  const tarjeta = (item: Item, n: number) => {
+    const suena = ahora?.item.m === item.m;
+    const momento = momentoDe(item.m.id);
+    return (
+      <article key={item.m.id ?? n} className={"tarjeta" + (item.m.tipo === "testimonio" ? " testimonio" : "") + (suena ? " sonando" : "")}>
+        {item.m.tipo === "testimonio" && <span className="etiqueta-tipo">Testimonio</span>}
+        <b>
+          {item.uni.nombre} · {item.uni.ciudad}{item.m.nombre ? ` · ${item.m.nombre}` : ""}
+          {momento && <time dateTime={momento.toISOString()}>{horaPeru(momento)}</time>}
+        </b>
+        <p>“{item.m.texto}”</p>
+        {botonesEscuchar(item, suena)}
+      </article>
+    );
+  };
+
+  // un testimonio como carta: letra capital, texto de lectura y firma al pie
+  const carta = (item: Item, n: number) => {
+    const suena = ahora?.item.m === item.m;
+    const momento = momentoDe(item.m.id);
+    return (
+      <article key={item.m.id ?? n} className={"carta" + (suena ? " sonando" : "")}>
+        <p className="carta-texto">{item.m.texto}</p>
+        <p className="carta-firma">
+          — {item.m.nombre ?? "Anónimo"}, {item.uni.nombre}{momento ? ` · ${horaPeru(momento)}` : ""}
+        </p>
+        {botonesEscuchar(item, suena)}
+      </article>
+    );
+  };
+
   // la onda sale del punto dibujado de la universidad (las de Lima se separan un poco en el mapa)
   const posTu = mapa?.universidades.find((v) => v.u.id === oyente.id);
   const real = mapa?.aPantalla(oyente);
@@ -339,34 +383,30 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
           </select>
         </label>
         <div className="acciones">
-          <button className="boton" type="button" onClick={() => tocar(dia.items)}><IconoPlay /> Escuchar</button>
+          <button className="boton" type="button" onClick={() => tocar(dia.items.filter((x) => tipoDe(x) === ver))}><IconoPlay /> Escuchar</button>
           <button className="boton suave" type="button" onClick={() => { detener(); setModal(true); }}>+ Escribir</button>
         </div>
         {aviso && <p className="aviso" role="status">{aviso}</p>}
         <h2>Mensajes del {fechaDe(dia.fecha).toLocaleDateString("es-PE", { day: "numeric", month: "long" })}:</h2>
+        {dia.items.length > 0 && (
+          <div className="interruptor">
+            <span className={ver === "apoyo" ? "activo" : undefined}>Apoyo <small>{recientes.length - recientes.filter((x) => tipoDe(x) === "testimonio").length}</small></span>
+            <button type="button" role="switch" aria-checked={ver === "testimonio"} aria-label="Mostrar testimonios"
+              className={"perilla-riel" + (ver === "testimonio" ? " encendido" : "")}
+              onClick={() => { detener(); setVer((v) => (v === "apoyo" ? "testimonio" : "apoyo")); }}>
+              <span className="perilla" />
+            </button>
+            <span className={ver === "testimonio" ? "activo testimonio" : undefined}>Testimonios <small>{recientes.filter((x) => tipoDe(x) === "testimonio").length}</small></span>
+          </div>
+        )}
         <div className="tarjetas">
           {carga === "cargando" && <p className="vacio">Cargando mensajes…</p>}
           {carga === "error" && <p className="vacio">No pudimos cargar los mensajes. Intenta recargar la página.</p>}
           {carga === "lista" && !dia.items.length && <p className="vacio">Aún no hay mensajes este día. ¿Escribes el primero?</p>}
-          {/* las tarjetas van de la más reciente a la más antigua; "Escuchar" sigue el orden de la onda (cercanía) */}
-          {[...dia.items].sort((a, b) => (b.m.id ?? "").localeCompare(a.m.id ?? "")).map((item, n) => {
-            const suena = ahora?.item.m === item.m;
-            const momento = momentoDe(item.m.id);
-            return (
-              <article key={item.m.id ?? n} className={"tarjeta" + (item.m.tipo === "testimonio" ? " testimonio" : "") + (suena ? " sonando" : "")}>
-                {item.m.tipo === "testimonio" && <span className="etiqueta-tipo">Testimonio</span>}
-                <b>
-                  {item.uni.nombre} · {item.uni.ciudad}{item.m.nombre ? ` · ${item.m.nombre}` : ""}
-                  {momento && <time dateTime={momento.toISOString()}>{horaPeru(momento)}</time>}
-                </b>
-                <p>“{item.m.texto}”</p>
-                <div className="botones">
-                  <button type="button" onClick={() => (suena && pausado ? seguir() : tocar([item]))}><IconoPlay /> Escuchar</button>
-                  <button type="button" disabled={!suena || pausado} onClick={pausar}><IconoPausa /> Pausa</button>
-                </div>
-              </article>
-            );
-          })}
+          {ver === "apoyo" ? recientes.filter((x) => tipoDe(x) === "apoyo").map(tarjeta) : recientes.filter((x) => tipoDe(x) === "testimonio").map(carta)}
+          {dia.items.length > 0 && !recientes.some((x) => tipoDe(x) === ver) && (
+            <p className="vacio">{ver === "apoyo" ? "Este día no hay mensajes de apoyo." : "Este día nadie compartió un testimonio."}</p>
+          )}
         </div>
       </aside>
 

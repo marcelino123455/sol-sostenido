@@ -57,6 +57,15 @@ class VozFondo {
   }
 }
 
+// En iOS, Web Audio respeta el interruptor de silencio. Con la sesión de audio en "playback" (Safari 16.4+)
+// iOS lo trata como reproducción de medios y suena igual. Debe ir antes de crear el AudioContext.
+function permitirConSilencio() {
+  const sesion = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (sesion) {
+    try { sesion.type = "playback"; } catch { /* navegador que no permite cambiarla */ }
+  }
+}
+
 export class Sonido {
   ctx: BaseAudioContext;
   vivos = new Map<AudioScheduledSourceNode, number>(); // fuente -> inicio (para cancelar lo que aún no sonó)
@@ -66,6 +75,7 @@ export class Sonido {
   busFondo: GainNode;
   vocesFondo: VozFondo[];
   constructor(ctx?: BaseAudioContext) { // ctx opcional: un OfflineAudioContext para medir la mezcla sin parlantes
+    if (!ctx) permitirConSilencio();
     const c = (this.ctx = ctx || new AudioContext({ latencyHint: "interactive" }));
     this.salida = c.createGain();
     this.salida.gain.value = 1.3; // medido (render offline): un día completo queda entre -6 y -4 dBFS de pico

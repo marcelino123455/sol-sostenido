@@ -184,6 +184,27 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
 .aviso { padding: 12px 14px; background: var(--panel); border-radius: 12px; box-shadow: 0 0 0 1px var(--sol-tenue); font-size: 14px; animation: aparece 180ms ease-out; }
 .vacio { padding: 8px 2px; font: italic 400 17px/1.35 var(--serif); color: var(--gris); }
 
+/* interruptor Apoyo | Testimonios */
+.interruptor { display: flex; align-items: center; gap: 10px; flex: none; font-size: 14px; font-weight: 600; color: var(--gris); }
+.interruptor span { transition: color 200ms var(--suave); }
+.interruptor small { margin-left: 2px; font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.interruptor .activo { color: var(--texto); }
+.interruptor .activo.testimonio { color: var(--testimonio); }
+.perilla-riel { position: relative; width: 46px; height: 26px; flex: none; border-radius: 13px; background: var(--panel); box-shadow: var(--sombra);
+  transition: background-color 200ms var(--suave); }
+.perilla-riel.encendido { background: var(--testimonio); }
+.perilla { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--texto);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: translate 220ms var(--suave), background-color 200ms var(--suave); }
+.perilla-riel.encendido .perilla { translate: 20px 0; background: var(--panel); }
+
+/* los testimonios se leen como cartas */
+.carta { flex: none; padding: 22px 22px 14px; background: var(--panel); border-radius: 4px 16px 16px 4px; box-shadow: inset 3px 0 0 var(--testimonio), var(--sombra);
+  animation: aparece 180ms ease-out; transition: box-shadow 200ms var(--suave); }
+.carta.sonando { box-shadow: inset 3px 0 0 var(--testimonio), 0 0 0 1.5px var(--testimonio), var(--brillo-tarjeta); }
+.carta-texto { font: 400 17px/1.6 var(--serif); text-wrap: pretty; hyphens: auto; }
+.carta-texto::first-letter { float: left; margin: 4px 8px 0 0; font: 400 52px/0.8 var(--serif); color: var(--testimonio); }
+.carta-firma { margin: 12px 0 6px; text-align: right; font: italic 400 14px var(--serif); color: var(--gris); }
+
 /* botón de tema */
 .boton-tema { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px; color: var(--texto); }
 .boton-tema:hover { background: var(--hover); }
@@ -231,7 +252,8 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
   .dias { flex-basis: 100%; grid-auto-flow: column; overflow-x: auto; grid-auto-columns: 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .burbuja, .tarjeta, .velo, .modal, .ingreso-descripcion, .opciones { animation: none; }
+  .burbuja, .tarjeta, .velo, .modal, .ingreso-descripcion, .opciones, .carta { animation: none; }
+  .perilla, .perilla-riel { transition: none; }
   .pulso, .pulso-onda { animation-duration: 0.01s; }
   .uni.oyente .uni-halo { animation: none; opacity: 0.3; }
   button:active:not(:disabled) { scale: 1; }
