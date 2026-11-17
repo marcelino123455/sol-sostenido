@@ -284,6 +284,10 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
   .mapa-zona { height: 70vh; }
   .pie { flex-wrap: wrap; }
   .dias { flex-basis: 100%; grid-auto-flow: column; overflow-x: auto; grid-auto-columns: 48px; }
+  /* exhibición en celular: el pie se apila de abajo hacia arriba en vez de ir en dos esquinas */
+  .exh-linea { bottom: 20px; left: 16px; right: 16px; font-size: 12px; }
+  .exh-invitacion { bottom: 42px; left: 16px; right: 16px; font-size: 14px; text-align: left; }
+  .exh-dia { bottom: 76px; left: 16px; right: 16px; font-size: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .burbuja, .tarjeta, .velo, .modal, .ingreso-descripcion, .opciones, .carta { animation: none; }
