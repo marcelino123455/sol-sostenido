@@ -107,6 +107,14 @@ button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2p
 h1 { font: 400 42px/1.05 var(--serif); letter-spacing: -0.015em; text-wrap: balance; }
 h1 span { color: var(--sol); }
 h2 { font: 400 19px/1.2 var(--serif); }
+.titulo-mensajes { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.actualizar { display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 36px; padding: 0 10px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; color: var(--gris); }
+.actualizar:hover:not(:disabled) { background: var(--hover); color: var(--texto); }
+.actualizar:disabled { opacity: 1; }
+.actualizar svg { width: 14px; height: 14px; }
+.actualizar.girando svg { animation: gira 0.8s linear infinite; }
+@keyframes gira { to { rotate: 360deg; } }
 .desde { font-size: 13px; color: var(--gris); }
 select { color: var(--texto); background: var(--panel); border-radius: 8px; padding: 4px 8px; margin-left: 2px; box-shadow: var(--sombra); cursor: pointer; }
 .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -254,6 +262,7 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
 @media (prefers-reduced-motion: reduce) {
   .burbuja, .tarjeta, .velo, .modal, .ingreso-descripcion, .opciones, .carta { animation: none; }
   .perilla, .perilla-riel { transition: none; }
+  .actualizar.girando svg { animation-duration: 2.4s; }
   .pulso, .pulso-onda { animation-duration: 0.01s; }
   .uni.oyente .uni-halo { animation: none; opacity: 0.3; }
   button:active:not(:disabled) { scale: 1; }

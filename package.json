@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "borrar": "node infra/worker/borrar.mjs"
   },
   "dependencies": {
     "js-tiktoken": "1.0.21",

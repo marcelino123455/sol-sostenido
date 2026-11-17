@@ -108,6 +108,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
   const [diaSel, setDiaSel] = useState(FECHAS.length - 1);
   const [ahora, setAhora] = useState<Ahora>(null);
   const [pausado, setPausado] = useState(false);
+  const [reproduciendo, setReproduciendo] = useState(false); // hay mensajes sonando (o en pausa)
   const [tam, setTam] = useState<{ w: number; h: number } | null>(null);
   const [alcanzadas, setAlcanzadas] = useState<string[]>([]);
   const [pulsos, setPulsos] = useState<Pulso[]>([]);
@@ -127,6 +128,21 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
       .then((m) => { setMensajes(m); setCarga("lista"); })
       .catch(() => setCarga("error"));
   }, []);
+
+  // "Actualizar": vuelve a pedir los mensajes sin recargar la página (se queda en el mismo día)
+  const [actualizando, setActualizando] = useState(false);
+  const cargar = async () => {
+    if (!API || actualizando) return;
+    setActualizando(true);
+    try {
+      setMensajes(await traerMensajes(FECHAS[0], HOY));
+      setCarga("lista");
+    } catch {
+      setCarga((c) => (c === "lista" ? c : "error")); // si ya había mensajes, se quedan a la vista
+    } finally {
+      setActualizando(false);
+    }
+  };
   const dia = dias[diaSel];
   const mapa = useMemo(() => (tam ? construirMapa(tam.w, tam.h) : null), [tam]);
 
@@ -153,6 +169,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
     repRef.current = null;
     setAhora(null);
     setPausado(false);
+    setReproduciendo(false);
     setAlcanzadas([]);
     if (ondaRef.current) ondaRef.current.style.display = "none";
   }, []);
@@ -166,6 +183,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
     detener();
     const t = await audio();
     repRef.current = tocarDia(sonidoRef.current!, { ...dia, items }, t);
+    setReproduciendo(true);
   };
 
   const pausar = () => {
@@ -259,6 +277,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
         repRef.current = null;
         clave = "";
         setAhora(null);
+        setReproduciendo(false);
         setAlcanzadas([]);
         if (g) g.style.display = "none";
       }
@@ -383,11 +402,27 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
           </select>
         </label>
         <div className="acciones">
-          <button className="boton" type="button" onClick={() => tocar(dia.items.filter((x) => tipoDe(x) === ver))}><IconoPlay /> Escuchar</button>
+          {/* mientras suena: "Escuchando" y un toque pausa; en pausa, un toque sigue */}
+          {!reproduciendo ? (
+            <button className="boton" type="button" onClick={() => tocar(dia.items.filter((x) => tipoDe(x) === ver))}><IconoPlay /> Escuchar</button>
+          ) : pausado ? (
+            <button className="boton" type="button" onClick={seguir} aria-label="En pausa, seguir escuchando"><IconoPlay /> En pausa</button>
+          ) : (
+            <button className="boton escuchando" type="button" onClick={pausar} aria-label="Escuchando, pausar"><IconoPausa /> Escuchando</button>
+          )}
           <button className="boton suave" type="button" onClick={() => { detener(); setModal(true); }}>+ Escribir</button>
         </div>
         {aviso && <p className="aviso" role="status">{aviso}</p>}
-        <h2>Mensajes del {fechaDe(dia.fecha).toLocaleDateString("es-PE", { day: "numeric", month: "long" })}:</h2>
+        <div className="titulo-mensajes">
+          <h2>Mensajes del {fechaDe(dia.fecha).toLocaleDateString("es-PE", { day: "numeric", month: "long" })}:</h2>
+          {API && (
+            <button type="button" className={"actualizar" + (actualizando ? " girando" : "")} onClick={cargar} disabled={actualizando}
+              aria-label="Actualizar mensajes" title="Actualizar mensajes">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span>{actualizando ? "Actualizando…" : "Actualizar"}</span>
+            </button>
+          )}
+        </div>
         {dia.items.length > 0 && (
           <div className="interruptor">
             <span className={ver === "apoyo" ? "activo" : undefined}>Apoyo <small>{recientes.length - recientes.filter((x) => tipoDe(x) === "testimonio").length}</small></span>
