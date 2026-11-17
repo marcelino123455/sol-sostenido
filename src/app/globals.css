@@ -213,6 +213,32 @@ select { color: var(--texto); background: var(--panel); border-radius: 8px; padd
 .carta-texto::first-letter { float: left; margin: 4px 8px 0 0; font: 400 52px/0.8 var(--serif); color: var(--testimonio); }
 .carta-firma { margin: 12px 0 6px; text-align: right; font: italic 400 14px var(--serif); color: var(--gris); }
 
+/* modo exhibición: solo el mapa a pantalla completa, con una capa discreta */
+.cabecera-botones { display: flex; gap: 2px; flex: none; }
+.app.exhibicion { grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 0; gap: 0; }
+.app.exhibicion .panel, .app.exhibicion .pie { display: none; }
+.app.exhibicion .mapa-zona { height: 100vh; }
+.app.exhibicion .peru { display: none; }
+.app.exhibicion .burbuja { max-width: 420px; }
+.app.exhibicion .burbuja .que { font-size: 22px; }
+.app.exhibicion .uni-texto { font-size: 14px; }
+.capa-exhibicion { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.capa-exhibicion > * { position: absolute; }
+.exh-titulo { top: 28px; left: 40px; font: 400 34px/1 var(--serif); }
+.exh-titulo span { color: var(--sol); }
+.exh-salir { top: 24px; right: 28px; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--gris);
+  pointer-events: auto; opacity: 0.55; transition: opacity 200ms var(--suave), background-color 200ms var(--suave); }
+.exh-salir:hover, .exh-salir:focus-visible { opacity: 1; background: var(--hover); }
+.exh-salir small { font-weight: 400; }
+.exh-dia { bottom: 32px; left: 40px; font: italic 400 24px/1.2 var(--serif); }
+.exh-dia::first-letter { text-transform: uppercase; }
+.exh-dia span { display: block; margin-top: 4px; font: 600 12px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--gris); }
+.exh-invitacion { bottom: 52px; right: 40px; font-size: 15px; color: var(--gris); text-align: right; }
+.exh-invitacion b { color: var(--texto); }
+.exh-linea { bottom: 30px; right: 40px; font-size: 13px; color: var(--gris); }
+.exh-interruptor { top: 20px; right: 120px; pointer-events: auto; padding: 6px 12px; border-radius: 14px; background: var(--panel); box-shadow: var(--sombra); }
+.exh-vacio { top: 50%; left: 50%; translate: -50% -50%; font: italic 400 24px var(--serif); color: var(--gris); }
+
 /* botón de tema */
 .boton-tema { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px; color: var(--texto); }
 .boton-tema:hover { background: var(--hover); }

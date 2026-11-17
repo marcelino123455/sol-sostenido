@@ -179,12 +179,75 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
     return sonidoRef.current.despertar();
   };
 
-  const tocar = async (items: Item[]) => {
+  const tocar = async (items: Item[], d = dia) => {
     detener();
     const t = await audio();
-    repRef.current = tocarDia(sonidoRef.current!, { ...dia, items }, t);
+    repRef.current = tocarDia(sonidoRef.current!, { ...d, items }, t);
     setReproduciendo(true);
   };
+
+  // ---------------------------------------------------------------- modo exhibición
+  // pantalla completa (si el navegador lo permite), solo el mapa, y los días con mensajes sonando en bucle
+  const [exhibicion, setExhibicion] = useState(false);
+  const primeraVuelta = useRef(true); // al entrar, el primer día empieza casi de inmediato
+
+  const entrarExhibicion = () => {
+    detener();
+    primeraVuelta.current = true;
+    setExhibicion(true);
+    document.documentElement.requestFullscreen?.().catch(() => { /* iPhone u otros: sigue sin pantalla completa */ });
+    audio(); // el audio se despierta con este mismo toque
+  };
+  const salirExhibicion = useCallback(() => {
+    detener();
+    setExhibicion(false);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }, [detener]);
+
+  // Esc o salir de pantalla completa: termina la exhibición
+  useEffect(() => {
+    if (!exhibicion) return;
+    const alSalir = () => { if (!document.fullscreenElement) salirExhibicion(); };
+    const tecla = (e: KeyboardEvent) => { if (e.key === "Escape") salirExhibicion(); };
+    document.addEventListener("fullscreenchange", alSalir);
+    window.addEventListener("keydown", tecla);
+    return () => { document.removeEventListener("fullscreenchange", alSalir); window.removeEventListener("keydown", tecla); };
+  }, [exhibicion, salirExhibicion]);
+
+  // cuando un día termina de sonar, tras una pausa pasa al siguiente día con mensajes (y vuelve a empezar)
+  const delTipo = (items: Item[]) => items.filter((x) => tipoDe(x) === ver);
+  const conMensajes = dias.map((d, n) => (delTipo(d.items).length ? n : -1)).filter((n) => n >= 0);
+  const tocarRef = useRef(tocar);
+  useEffect(() => { tocarRef.current = tocar; });
+  const claveDias = conMensajes.join();
+  useEffect(() => {
+    if (!exhibicion || reproduciendo || !claveDias) return;
+    const indices = claveDias.split(",").map(Number);
+    const espera = setTimeout(() => {
+      // la primera vez suena el día elegido (si tiene mensajes); luego el siguiente que tenga
+      const siguiente = primeraVuelta.current && indices.includes(diaSel) ? diaSel : (indices.find((n) => n > diaSel) ?? indices[0]);
+      primeraVuelta.current = false;
+      setDiaSel(siguiente);
+      tocarRef.current(dias[siguiente].items.filter((x) => tipoDe(x) === ver), dias[siguiente]);
+    }, primeraVuelta.current ? 600 : 3000);
+    return () => clearTimeout(espera);
+  }, [exhibicion, reproduciendo, claveDias, diaSel, dias, ver]);
+
+  // el switch Apoyo | Testimonios: en exhibición vuelve a empezar con el otro tipo desde el día actual
+  const cambiarVer = () => {
+    detener();
+    primeraVuelta.current = true;
+    setVer((v) => (v === "apoyo" ? "testimonio" : "apoyo"));
+  };
+
+  // en exhibición los mensajes nuevos se cargan solos cada 5 minutos
+  const cargarRef = useRef(cargar);
+  useEffect(() => { cargarRef.current = cargar; });
+  useEffect(() => {
+    if (!exhibicion || !API) return;
+    const cada = setInterval(() => cargarRef.current(), 5 * 60_000);
+    return () => clearInterval(cada);
+  }, [exhibicion]);
 
   const pausar = () => {
     (sonidoRef.current?.ctx as AudioContext | undefined)?.suspend();
@@ -353,7 +416,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
   const desfase = posTu && real ? `translate(${(posTu.x - real[0]).toFixed(1)},${(posTu.y - real[1]).toFixed(1)})` : undefined;
 
   return (
-    <div className="app">
+    <div className={"app" + (exhibicion ? " exhibicion" : "")}>
       <section className="mapa-zona" ref={zonaRef} aria-label="Mapa de universidades del Perú">
         <svg ref={svgRef} className="mapa" role="img" viewBox={tam ? `0 0 ${tam.w} ${tam.h}` : undefined} aria-label="Mapa del Perú con sus universidades">
           {mapa && <>
@@ -384,12 +447,40 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
             <div className="que">“<TextoConClaves texto={ahora.item.m.texto} claves={ahora.item.conv.claves} activa={ahora.enCierre ? -1 : ahora.k} />”</div>
           </div>
         )}
+        {exhibicion && (
+          <div className="capa-exhibicion">
+            <p className="exh-titulo">Sol sostenido <span>♯</span></p>
+            <button type="button" className="exh-salir" onClick={salirExhibicion}>Salir <small>(Esc)</small></button>
+            <p className="exh-dia">
+              {fechaDe(dia.fecha).toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" })}
+              <span>{delTipo(dia.items).length} {ver === "apoyo" ? (delTipo(dia.items).length === 1 ? "mensaje de apoyo" : "mensajes de apoyo") : (delTipo(dia.items).length === 1 ? "testimonio" : "testimonios")}</span>
+            </p>
+            <p className="exh-invitacion">Deja tu mensaje de apoyo en <b>{window.location.host}</b></p>
+            <p className="exh-linea">¿Necesitas hablar con alguien? Línea 113, opción 5</p>
+            <div className="interruptor exh-interruptor">
+              <span className={ver === "apoyo" ? "activo" : undefined}>Apoyo</span>
+              <button type="button" role="switch" aria-checked={ver === "testimonio"} aria-label="Mostrar testimonios"
+                className={"perilla-riel" + (ver === "testimonio" ? " encendido" : "")} onClick={cambiarVer}>
+                <span className="perilla" />
+              </button>
+              <span className={ver === "testimonio" ? "activo testimonio" : undefined}>Testimonios</span>
+            </div>
+            {!conMensajes.length && (
+              <p className="exh-vacio">{ver === "apoyo" ? "Aún no hay mensajes de apoyo. ¡Sé el primero en escribir!" : "Aún no hay testimonios."}</p>
+            )}
+          </div>
+        )}
       </section>
 
       <aside className="panel">
         <div className="cabecera">
           <h1>Sol sostenido <span>♯</span></h1>
-          <BotonTema />
+          <div className="cabecera-botones">
+            <button type="button" className="boton-tema" onClick={entrarExhibicion} aria-label="Modo exhibición" title="Modo exhibición: pantalla completa y mensajes en bucle">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            <BotonTema />
+          </div>
         </div>
         <p className="desde">
           Escribes como <b>{perfil.nombre ?? "anónimo"}</b> · {autor.nombre}{" "}
@@ -428,7 +519,7 @@ function MuralSonoro({ perfil, alCambiar }: { perfil: Perfil; alCambiar: () => v
             <span className={ver === "apoyo" ? "activo" : undefined}>Apoyo <small>{recientes.length - recientes.filter((x) => tipoDe(x) === "testimonio").length}</small></span>
             <button type="button" role="switch" aria-checked={ver === "testimonio"} aria-label="Mostrar testimonios"
               className={"perilla-riel" + (ver === "testimonio" ? " encendido" : "")}
-              onClick={() => { detener(); setVer((v) => (v === "apoyo" ? "testimonio" : "apoyo")); }}>
+              onClick={cambiarVer}>
               <span className="perilla" />
             </button>
             <span className={ver === "testimonio" ? "activo testimonio" : undefined}>Testimonios <small>{recientes.filter((x) => tipoDe(x) === "testimonio").length}</small></span>
